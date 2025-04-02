@@ -8,6 +8,7 @@ from tqdm import tqdm
 import sys
 
 sys.path = ["."] + sys.path
+sys.path = [".."] + sys.path
 import src.hand_pose.slerp as slerp
 
 
@@ -61,9 +62,9 @@ def crop2full_keypoints(num_frames, boxes, j2d_list):
     return j2d_all
 
 
-def validate_poses(seq_name):
+def validate_poses(data_dir, seq_name):
     print(f"Validating {seq_name}")
-    fnames = sorted(glob(f"./data/{seq_name}/processed/mesh_fit_vis/*_right_fine.ply"))
+    fnames = sorted(glob(f"{data_dir}/{seq_name}/processed/mesh_fit_vis/*_right_fine.ply"))
     assert len(fnames) > 0
 
     volumes = compute_mesh_volumes(fnames)
@@ -75,20 +76,20 @@ def validate_poses(seq_name):
     key_frames = np.array([f for f in list(range(num_frames)) if f not in outliers])
 
     data = np.load(
-        f"./data/{seq_name}/processed/hold_fit.init.npy", allow_pickle=True
+        f"{data_dir}/{seq_name}/processed/hold_fit.init.npy", allow_pickle=True
     ).item()["right"]
 
     out = slerp.slerp_mano_params(outliers, num_frames, key_frames, data)
-    out_slerp_p = f"./data/{seq_name}/processed/hold_fit.slerp.npy"
+    out_slerp_p = f"{data_dir}/{seq_name}/processed/hold_fit.slerp.npy"
     print(f"Saving to {out_slerp_p}")
     np.save(out_slerp_p, {"right": out})
 
-    fnames = sorted(glob(f"./data/{seq_name}/processed/crop_image/*"))
+    fnames = sorted(glob(f"{data_dir}/{seq_name}/processed/crop_image/*"))
     assert len(fnames) > 0
 
     # denormalize 2d keypoints
-    boxes = np.load(f"./data/{seq_name}/processed/boxes.npy")
-    j2d_list = np.load(f"./data/{seq_name}/processed/j2d.crop.npy")
+    boxes = np.load(f"{data_dir}/{seq_name}/processed/boxes.npy")
+    j2d_list = np.load(f"{data_dir}/{seq_name}/processed/j2d.crop.npy")
     j2d_all = crop2full_keypoints(num_frames, boxes, j2d_list)
 
     out_p = plot_2d_keypoints(fnames, outliers, j2d_all)
@@ -101,7 +102,7 @@ def validate_poses(seq_name):
     j2d_all[outliers] *= np.nan
     j2d_all = j2d_all[:, :, :2]
     j2d_all = j2d_all[:, metro2mano]
-    out_p = f"./data/{seq_name}/processed/j2d.full.npy"
+    out_p = f"{data_dir}/{seq_name}/processed/j2d.full.npy"
     np.save(out_p, {"j2d.right": j2d_all})
     print(f"Saved to {out_p}")
 
@@ -119,6 +120,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--data_dir", type=str, default=None)
     parser.add_argument("--seq_name", type=str, default=None)
     args = parser.parse_args()
-    validate_poses(args.seq_name)
+    validate_poses(args.data_dir, args.seq_name)

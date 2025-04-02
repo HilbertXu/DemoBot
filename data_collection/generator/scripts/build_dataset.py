@@ -23,10 +23,10 @@ device = "cuda:0"
 
 mano_models = {
     "right": MANO(
-        "../code/body_models", is_rhand=True, flat_hand_mean=False, use_pca=False
+        "./MeshTransformer/metro/modeling/data", is_rhand=True, flat_hand_mean=False, use_pca=False
     ).to(device),
     "left": MANO(
-        "../code/body_models", is_rhand=False, flat_hand_mean=False, use_pca=False
+        "./MeshTransformer/metro/modeling/data", is_rhand=False, flat_hand_mean=False, use_pca=False
     ).to(device),
 }
 

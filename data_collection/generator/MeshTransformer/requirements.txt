@@ -5,7 +5,6 @@ tqdm
 nltk
 numpy
 scipy==1.4.1
-chumpy
 boto3
 requests
 chardet

@@ -22,8 +22,8 @@ def model_output_to_meshes(init_out, f3d_r):
 def main(args):
     from aitviewer.renderables.meshes import Meshes
 
-    MANO_DIR_R = "../code/body_models/MANO_RIGHT.pkl"
-    MANO_DIR_L = "../code/body_models/MANO_LEFT.pkl"
+    MANO_DIR_R = "./MeshTransformer/metro/modeling/data/MANO_RIGHT.pkl"
+    MANO_DIR_L = "./MeshTransformer/metro/modeling/data/MANO_LEFT.pkl"
     import smplx
 
     f3d_r = mano_layer = smplx.create(
@@ -33,7 +33,7 @@ def main(args):
         model_path=MANO_DIR_L, model_type="mano", use_pca=False, is_rhand=False
     ).faces
     sealed_vertices_sem_idx = np.load(
-        "../code/body_models/sealed_vertices_sem_idx.npy", allow_pickle=True
+        "./MeshTransformer/metro/modeling/data/sealed_vertices_sem_idx.npy", allow_pickle=True
     )
     tip_sem_idx = [12, 11, 4, 5, 6]
     vidx = np.concatenate([sealed_vertices_sem_idx[sem_idx] for sem_idx in tip_sem_idx])

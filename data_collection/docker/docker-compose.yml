@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  demobot-data-collection:
+    build:
+      context: .             # Path to the folder with your Dockerfile
+      dockerfile: Dockerfile
+    image: demobot-data-collection
+    runtime: nvidia
+    environment:
+      - DISPLAY=$DISPLAY
+      - TZ=US/Pacific
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ../generator:/workspace/generator
+    network_mode: host
+    entrypoint: [bash, -l, -c]
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    command: generator/install/setup_conda.sh
+      

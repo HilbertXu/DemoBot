@@ -7,7 +7,7 @@ import numpy as np
 # import pytorch3d.transforms as tf
 
 # offline rendering
-os.environ["PYOPENGL_PLATFORM"] = "egl"
+# os.environ["PYOPENGL_PLATFORM"] = "egl"
 
 
 def flip_meshes(meshes):

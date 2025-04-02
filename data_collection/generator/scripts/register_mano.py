@@ -6,14 +6,15 @@ from tqdm import tqdm
 import sys
 
 sys.path = ["."] + sys.path
+sys.path = [".."] + sys.path
+
 from src.hand_pose.registration import optimize_mano_shape
 
-sys.path = [".."] + sys.path
 from common.ld_utils import ld2dl
 from common.xdict import xdict
 
-MANO_DIR_L = "../code/body_models/MANO_LEFT.pkl"
-MANO_DIR_R = "../code/body_models/MANO_RIGHT.pkl"
+MANO_DIR_L = "./MeshTransformer/metro/modeling/data/MANO_LEFT.pkl"
+MANO_DIR_R = "./MeshTransformer/metro/modeling/data/MANO_RIGHT.pkl"
 
 mano_layers = {
     "right": smplx.create(
@@ -25,7 +26,22 @@ mano_layers = {
 }
 
 
+
+def parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_dir", type=str, default="")
+    parser.add_argument("--seq_name", type=str, default="")
+    parser.add_argument("--save_mesh", action="store_true")
+    parser.add_argument("--use_beta_loss", action="store_true")
+    parser.add_argument("--hand_type", type=str, default=None)
+    args = parser.parse_args()
+    return args
+
+
 def fit_frame(
+    data_dir,
     seq_name,
     target_v3d,
     save_mesh,
@@ -37,7 +53,7 @@ def fit_frame(
 ):
     target_v3d = torch.FloatTensor(target_v3d.reshape(1, -1, 3)).cuda()
 
-    vis_dir = f"./data/{seq_name}/processed/mesh_fit_vis/"
+    vis_dir = f"{data_dir}/{seq_name}/processed/mesh_fit_vis/"
 
     tip_sem_idx = [12, 11, 4, 5, 6]
 
@@ -76,19 +92,9 @@ def fit_frame(
     return params
 
 
-def parse_args():
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--seq_name", type=str, default="")
-    parser.add_argument("--save_mesh", action="store_true")
-    parser.add_argument("--use_beta_loss", action="store_true")
-    parser.add_argument("--hand_type", type=str, default=None)
-    args = parser.parse_args()
-    return args
 
 
-def fit_single_hand(v3d_ra_list, seq_name, args, is_right):
+def fit_single_hand(v3d_ra_list, data_dir, seq_name, args, is_right):
     import copy
 
     pbar = tqdm(enumerate(v3d_ra_list), total=len(v3d_ra_list))
@@ -107,6 +113,7 @@ def fit_single_hand(v3d_ra_list, seq_name, args, is_right):
             out["transl"] = torch.zeros(1, 3).cuda() * np.nan
         else:
             out = fit_frame(
+                data_dir,
                 seq_name,
                 v3d_ra,
                 save_mesh=args.save_mesh,
@@ -129,7 +136,8 @@ def fit_single_hand(v3d_ra_list, seq_name, args, is_right):
 def main():
     args = parse_args()
     seq_name = args.seq_name
-    data = np.load(f"./data/{seq_name}/processed/v3d.npy", allow_pickle=True).item()
+    data_dir = args.data_dir
+    data = np.load(f"{args.data_dir}/{seq_name}/processed/v3d.npy", allow_pickle=True).item()
     data = xdict(data).search("v3d.")
 
     if args.hand_type is not None:
@@ -141,9 +149,9 @@ def main():
         flag = key.split(".")[1]
         is_right = flag == "right"
 
-        mydict = fit_single_hand(val, seq_name, args, is_right=is_right)
+        mydict = fit_single_hand(val, data_dir, seq_name, args, is_right=is_right)
         out_dict[flag] = mydict
-    out_p = f"./data/{seq_name}/processed/hold_fit.init.npy"
+    out_p = f"{args.data_dir}/{seq_name}/processed/hold_fit.init.npy"
     os.makedirs(os.path.dirname(out_p), exist_ok=True)
     np.save(out_p, out_dict)
     print(f"Saved to {out_p}")

@@ -8,9 +8,12 @@ import matplotlib.pyplot as plt
 from glob import glob
 from tqdm import tqdm
 
+# @TODO keep only the points that fall into the object mask
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--data_dir", type=str, help="sequence name")
     parser.add_argument("--seq_name", type=str, help="sequence name")
     parser.add_argument("--no_vis", default=False, action="store_true")
     parser.add_argument("--object_mesh", type=str, help="sequence name")
@@ -60,18 +63,18 @@ if __name__ == "__main__":
     mesh = trimesh.load(args.object_mesh, process=False)
     object_points_3d = np.array(mesh.sample(500))  # Object points in object space
     
-    out_dir = f"./data/{args.seq_name}/processed/object"
-    out_image_dir = f"./data/{args.seq_name}/processed/object/projected_2d"
+    out_dir = f"{args.data_dir}/{args.seq_name}/processed/object"
+    out_image_dir = f"{args.data_dir}/{args.seq_name}/processed/object/projected_2d"
     
     os.makedirs(out_image_dir, exist_ok=True)
 
     # Example: Camera intrinsic matrix
-    K = intrinsic = np.load(f"./data/{args.seq_name}/cam_K.npy")
+    K = intrinsic = np.load(f"{args.data_dir}/{args.seq_name}/cam_K.npy")
     
     
-    images = sorted(glob(f"./data/{args.seq_name}/images/*"))
+    images = sorted(glob(f"{args.data_dir}/{args.seq_name}/images/*"))
     num_frames = len(images)
-    poses = np.load(f"./data/{args.seq_name}/processed/object/{object_name}_pose_cam.npy")
+    poses = np.load(f"{args.data_dir}/{args.seq_name}/processed/object/{object_name}_pose_cam.npy")
     
     assert poses.shape[0] == num_frames
     projected_2d = []

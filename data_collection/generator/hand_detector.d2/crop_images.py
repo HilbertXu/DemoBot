@@ -18,7 +18,7 @@ for d in ["trainval", "test"]:
 import os.path as op
 from glob import glob
 
-def main(seq_name, box_scale, min_size, max_size, vis_raw):
+def main(data_dir, seq_name, box_scale, min_size, max_size, vis_raw):
     # load cfg and model
     cfg = get_cfg()
     cfg.merge_from_file("faster_rcnn_X_101_32x8d_FPN_3x_100DOH.yaml")
@@ -26,7 +26,7 @@ def main(seq_name, box_scale, min_size, max_size, vis_raw):
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7  # 0.5 , set the testing threshold for this model
 
     # data path
-    seq_folder = f'../../data/{seq_name}'
+    seq_folder = f'{data_dir}/{seq_name}'
     fnames = sorted(glob(op.join(seq_folder, 'images', '*')))
 
 
@@ -92,6 +92,7 @@ def main(seq_name, box_scale, min_size, max_size, vis_raw):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--data_dir', type=str, default='')
     parser.add_argument('--seq_name', type=str, default='')
     parser.add_argument('--scale', type=float)
     parser.add_argument('--min_size', type=float, default=256)
@@ -99,5 +100,12 @@ if __name__ == '__main__':
     parser.add_argument('--vis_raw', action='store_true')
     args = parser.parse_args()
     
-    main(seq_name=args.seq_name, box_scale=args.scale, min_size=args.min_size, max_size=args.max_size, vis_raw=args.vis_raw)
+    main(
+        data_dir=args.data_dir,
+        seq_name=args.seq_name, 
+        box_scale=args.scale, 
+        min_size=args.min_size, 
+        max_size=args.max_size, 
+        vis_raw=args.vis_raw
+    )
 

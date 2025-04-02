@@ -14,7 +14,7 @@ sys.path = [".", ".."] + sys.path
 from src.alignment.data import read_data, read_data_with_object_mesh
 
 from common.xdict import xdict
-from generator.src.alignment.data import FakeDataset
+from src.alignment.data import FakeDataset
 
 
 def main(args):
@@ -23,7 +23,7 @@ def main(args):
     
     
     if not args.object_mesh: # no object mesh, use object pts reconstructed from SfM
-        k_path_colmap = op.join(f"./data/{args.seq_name}/processed/colmap/intrinsic.npy")
+        k_path_colmap = op.join(f"{args.data_dir}/{args.seq_name}/processed/colmap/intrinsic.npy")
         ho3d_seq = args.seq_name.split("_")[1]
         k_path_ho3d = f"./assets/datasets/HO3D_v3/processed/{ho3d_seq}.pt"
         if op.exists(k_path_ho3d):
@@ -32,29 +32,29 @@ def main(args):
             K = torch.FloatTensor(np.load(k_path_colmap))
         data = read_data(args.seq_name, K=K).to(device)
     else:
-        K = np.load(f"./data/{args.seq_name}/cam_K.npy") # use calibrated camere intrinsic
+        K = np.load(f"{args.data_dir}/{args.seq_name}/cam_K.npy") # use calibrated camere intrinsic
         K = torch.FloatTensor(K)
+        print(args.data_dir)
+        data = read_data_with_object_mesh(args.data_dir, args.seq_name, args.object_mesh, n_points=300, K=K).to(device)
 
-        data = read_data_with_object_mesh(args.seq_name, args.object_mesh, n_points=300, K=K).to(device)
-
-    out_p = op.join(f"./data/{args.seq_name}/processed/hold_fit.aligned.npy")
+    out_p = op.join(f"{args.data_dir}/{args.seq_name}/processed/hold_fit.aligned.npy")
     checkpoint_callback = ModelCheckpoint(
-        dirpath=op.join(f"./data/{args.seq_name}/processed/mano_fit_ckpt/{args.mode}"),
+        dirpath=op.join(f"{args.data_dir}/{args.seq_name}/processed/mano_fit_ckpt/{args.mode}"),
         save_last=True,
     )
     os.makedirs(op.dirname(out_p), exist_ok=True)
 
     conf = load_conf(args)
     if args.is_arctic:
-        from generator.src.alignment.pl_module.arctic import ARCTICModule as PLModule
+        from src.alignment.pl_module.arctic import ARCTICModule as PLModule
 
         print("Using ARCTIC module..")
     elif len(data["entities"]) == 3:
-        from generator.src.alignment.pl_module.h2o import H2OModule as PLModule
+        from src.alignment.pl_module.h2o import H2OModule as PLModule
 
         print("Using H2O module..")
     else:
-        from generator.src.alignment.pl_module.ho import HOModule as PLModule
+        from src.alignment.pl_module.ho import HOModule as PLModule
 
         print("Using HO module..")
     pl_model = PLModule(data, args, conf)
@@ -77,9 +77,9 @@ def main(args):
     if args.mode == "h":
         load_ckpt = None
     elif args.mode == "o":
-        load_ckpt = f"data/{args.seq_name}/processed/mano_fit_ckpt/h/last.ckpt"
+        load_ckpt = f"{args.data_dir}/{args.seq_name}/processed/mano_fit_ckpt/h/last.ckpt"
     elif args.mode == "ho":
-        load_ckpt = f"data/{args.seq_name}/processed/mano_fit_ckpt/o/last.ckpt"
+        load_ckpt = f"{args.data_dir}/{args.seq_name}/processed/mano_fit_ckpt/o/last.ckpt"
     else:
         assert False, f"Invalid args.mode {args.mode}"
 
@@ -125,6 +125,7 @@ def parse_args():
     import argparse
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--data_dir", type=str, default="")
     parser.add_argument("--seq_name", type=str, default="")
     parser.add_argument("--mode", type=str, default="")
     parser.add_argument("--config", type=str, default="confs/generic.yaml")

@@ -47,10 +47,12 @@ if __name__=='__main__':
   parser.add_argument('--debug', type=int, default=1)
   parser.add_argument('--debug_dir', type=str, default=f'{code_dir}/debug')
   parser.add_argument('--mask_folder', type=str, default=None)
-  parser.add_argument('--ignore_x_axis', action='store_true', help='ignore the rotation along x axis')
-  parser.add_argument('--ignore_y_axis', action='store_true', help='ignore the rotation along y axis')
-  parser.add_argument('--ignore_z_axis', action='store_true', help='ignore the rotation along z axis')
+  parser.add_argument('--ignore_x_axis', type=int, default=0, help='ignore the rotation along x axis')
+  parser.add_argument('--ignore_y_axis', type=int, default=0, help='ignore the rotation along y axis')
+  parser.add_argument('--ignore_z_axis', type=int, default=0, help='ignore the rotation along z axis')
   args = parser.parse_args()
+
+  print(args.mesh_file)
 
   set_logging_format()
   set_seed(0)
