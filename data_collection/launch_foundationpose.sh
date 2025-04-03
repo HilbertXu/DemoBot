@@ -21,4 +21,4 @@ docker run --gpus all --rm -it --network host \
   -v "$(pwd)/$ASSETS_DIR":"$DOCKER_ASSETS_DIR" \
   -v "$(pwd)/../data_collection":/workspace/data_collection \
   foundationpose \
-  /opt/conda/envs/my/bin/python run_demo.py --mesh_file $DOCKER_ASSETS_DIR/$OBJECT_MESH_FILE --test_scene_dir $DOCKER_DATA_DIR/$SEQ_NAME --mask_folder $MASK_FOLDER --est_refine_iter 8 --track_refine_iter 5 --debug 3 --ignore_x_axis $IGNORE_X_AXIS --ignore_y_axis $IGNORE_Y_AXIS --ignore_z_axis $IGNORE_Z_AXIS
+  /opt/conda/envs/my/bin/python run_demo.py --mesh_file $DOCKER_ASSETS_DIR/$OBJECT_MESH_FILE --test_scene_dir $DOCKER_DATA_DIR/$SEQ_NAME --mask_folder $MASK_FOLDER --est_refine_iter 8 --track_refine_iter 5 --debug 3 --debug_dir $DOCKER_DATA_DIR/$SEQ_NAME/processed/fp_debug --ignore_x_axis $IGNORE_X_AXIS --ignore_y_axis $IGNORE_Y_AXIS --ignore_z_axis $IGNORE_Z_AXIS

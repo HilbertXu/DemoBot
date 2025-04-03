@@ -55,12 +55,13 @@ def get_bop_video_dirs(dataset):
 
 
 class YcbineoatReader:
-  def __init__(self,video_dir, downscale=1, shorter_side=None, zfar=np.inf, mask_folder=None):
+  def __init__(self,video_dir, downscale=1, shorter_side=None, zfar=np.inf, mask_folder=None, factor=1e3):
     self.video_dir = video_dir
     self.downscale = downscale
     self.zfar = zfar
     self.color_files = sorted(glob.glob(f"{self.video_dir}/rgb/*.png"))
     self.K = np.loadtxt(f'{video_dir}/cam_K.txt').reshape(3,3)
+    
     self.id_strs = []
     for color_file in self.color_files:
       id_str = os.path.basename(color_file).replace('.png','')
@@ -73,6 +74,7 @@ class YcbineoatReader:
     self.H = int(self.H*self.downscale)
     self.W = int(self.W*self.downscale)
     self.K[:2] *= self.downscale
+    self.factor = factor
 
     self.gt_pose_files = sorted(glob.glob(f'{self.video_dir}/annotated_poses/*'))
 
@@ -121,8 +123,9 @@ class YcbineoatReader:
     return mask
 
   def get_depth(self,i):
-    depth = cv2.imread(self.color_files[i].replace('rgb','depth'),-1)/1e3
-    depth = cv2.resize(depth, (self.W,self.H), interpolation=cv2.INTER_NEAREST)
+    depth = cv2.imread(self.color_files[i].replace('rgb','depth'),-1)/self.factor
+    if depth.shape[0] != self.H or depth.shape[1] != self.W:
+      depth = cv2.resize(depth, (self.W,self.H), interpolation=cv2.INTER_NEAREST)
     depth[(depth<0.001) | (depth>=self.zfar)] = 0
     return depth
 

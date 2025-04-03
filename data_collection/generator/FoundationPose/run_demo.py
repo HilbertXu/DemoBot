@@ -57,8 +57,6 @@ if __name__=='__main__':
   set_logging_format()
   set_seed(0)
   
-  os.makedirs(f'{args.test_scene_dir}/pose', exist_ok=True)
-
   mesh = trimesh.load(args.mesh_file)
 
   debug = args.debug
@@ -74,7 +72,7 @@ if __name__=='__main__':
   est = FoundationPose(model_pts=mesh.vertices, model_normals=mesh.vertex_normals, mesh=mesh, scorer=scorer, refiner=refiner, debug_dir=debug_dir, debug=debug, glctx=glctx)
   logging.info("estimator initialization done")
 
-  reader = YcbineoatReader(video_dir=args.test_scene_dir, shorter_side=None, zfar=np.inf, mask_folder=args.mask_folder)
+  reader = YcbineoatReader(video_dir=args.test_scene_dir, downscale=1, shorter_side=None, zfar=np.inf, mask_folder=args.mask_folder, factor=1e3)
   poses = []
   for i in range(len(reader.color_files)):
     logging.info(f'i:{i}')

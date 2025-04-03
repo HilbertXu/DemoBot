@@ -23,6 +23,7 @@ def parse_args():
     parser.add_argument("--output_dir", type=str, help="path to the output folder")
     parser.add_argument("--calibrate_camera", action='store_true', help="whether to calibrate camera extrinsic")
     parser.add_argument("--calibrate_camera_vis", action='store_true', help="whether to visualize the marker")
+    parser.add_argument("--fps", type=float,  default=30)
     
     return parser.parse_args()
 
@@ -76,26 +77,32 @@ clipping_distance = clipping_distance_in_meters / depth_scale
 align_to = rs.stream.color
 align = rs.align(align_to)
 
-# Get the absolute path to the subfolder
-subfolder_depth = f"{args.output_dir}/depth"
-subfolder_rgb = f"{args.output_dir}/rgb"
 
-print(subfolder_depth, subfolder_rgb)
+
 
 # Create all 
 
 RecordStream = False
+record_interval = 1 / float(args.fps)
+last_record_time = 0
 
+args.output_dir = f"{args.output_dir}_fps{int(args.fps)}"
+
+# Get the absolute path to the subfolder
+subfolder_depth = f"{args.output_dir}/depth"
+subfolder_rgb = f"{args.output_dir}/rgb"
 # setting up output folder
 if os.path.exists(args.output_dir):
     shutil.rmtree(args.output_dir)
 os.makedirs(args.output_dir, exist_ok=True)
 os.makedirs(f'{args.output_dir}/processed/sam/object/images_masks', exist_ok=True)
+os.makedirs(f'{args.output_dir}/processed/sam/target/images_masks', exist_ok=True)
 os.makedirs(f'{args.output_dir}/processed/sam/right/images_masks', exist_ok=True)
 os.makedirs(f'{args.output_dir}/processed/sam/left/images_masks', exist_ok=True)
 os.makedirs(subfolder_depth, exist_ok=True)
 os.makedirs(subfolder_rgb, exist_ok=True)
 os.symlink(f'./rgb', f'{args.output_dir}/images')
+# 
 
 
 
@@ -215,19 +222,25 @@ try:
                 print("Recording started")
             else:
                 RecordStream = False
+                # os.system(f'zip -r {args.output_dir}/rgb.zip  {args.output_dir}/rgb')
                 print("Recording stopped")
         
         
 
         if RecordStream:
-            framename = int(round(time.time() * 1000))
+            now = time.time()
+            if now - last_record_time > record_interval:
+                
+                framename = int(round(time.time() * 1000))
 
-            # Define the path to the image file within the subfolder
-            image_path_depth = os.path.join(subfolder_depth, f"{framename}.png")
-            image_path_rgb = os.path.join(subfolder_rgb, f"{framename}.png")
-            
-            cv2.imwrite(image_path_depth, depth_image)
-            cv2.imwrite(image_path_rgb, color_image)
+                # Define the path to the image file within the subfolder
+                image_path_depth = os.path.join(subfolder_depth, f"{framename}.png")
+                image_path_rgb = os.path.join(subfolder_rgb, f"{framename}.png")
+                
+                cv2.imwrite(image_path_depth, depth_image)
+                cv2.imwrite(image_path_rgb, color_image)
+                last_record_time = now
+                
 
         # Press esc or 'q' to close the image window
         if key & 0xFF == ord("q") or key == 27:
