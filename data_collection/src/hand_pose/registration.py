@@ -288,10 +288,14 @@ def optimize_mano_shape(
     trans = torch.rand(batch_size, 3).to(device)
 
     if init_params is not None:
-        shape = init_params["betas"].view(1, 10).detach()
-        rot = init_params["global_orient"].view(1, 3).detach()
-        pose = init_params["hand_pose"].view(1, -1).detach()
-        trans = init_params["transl"].view(1, 3).detach()
+        if 'betas' in init_params.keys():
+            shape = init_params["betas"].view(1, 10).detach()
+        if 'global_orient' in init_params.keys():
+            rot = init_params["global_orient"].view(1, 3).detach()
+        if 'hand_pose' in init_params.keys():
+            pose = init_params["hand_pose"].view(1, -1).detach()
+        if 'transl' in init_params.keys():
+            trans = init_params["transl"].view(1, 3).detach()
 
     shape.requires_grad_()
     rot.requires_grad_()
@@ -355,3 +359,161 @@ def optimize_mano_shape(
             vis_dir + f"{iteration:04}_" + hand_type + "_fine.ply",
         )
     return {"global_orient": rot, "hand_pose": pose, "betas": shape, "transl": trans}
+
+
+def optimize_mano_shape_wilor(
+    pred_vertices,
+    mano_layers,
+    optim_specs,
+    iteration,
+    init_params=None,
+    use_beta_loss=False,
+):
+    batch_size = 1  # 512  # 32
+    ncomps = 45
+    epoch_coarse = optim_specs["epoch_coarse"]
+    epoch_fine = optim_specs["epoch_fine"]
+    is_right = optim_specs["is_right"]
+    save_mesh = optim_specs["save_mesh"]
+    criterion = optim_specs["criterion"]
+    torch.random.manual_seed(optim_specs["seed"])
+    vis_dir = optim_specs["vis_dir"]
+    sem_idx = optim_specs["sem_idx"]
+    hand_type = "right" if is_right else "left"
+    mano_layer = mano_layers[hand_type]
+
+    target_vertices = pred_vertices.detach()
+    target_vertex = target_vertices[0]
+    faces = mano_layer.faces
+
+    seal_faces = np.array(SEAL_FACES_R)
+    if not is_right:
+        # left hand
+        seal_faces = seal_faces[:, np.array([1, 0, 2])]  # invert face normal
+
+    if save_mesh:
+        save_trimesh(
+            target_vertex.cpu().detach().numpy(),
+            faces,
+            vis_dir + f"{iteration:04}_" + hand_type + "_target.ply",
+        )
+    faces = np.concatenate((faces, seal_faces))
+    device = "cuda"
+    mano_layer = mano_layer.to(device)
+
+    # Model para initialization:
+    shape = torch.rand(batch_size, 10).to(device)
+    rot = torch.rand(batch_size, 3).to(device)
+    pose = torch.zeros(batch_size, ncomps).to(device)
+    trans = torch.rand(batch_size, 3).to(device)
+
+    if init_params is not None:
+        with torch.no_grad():
+            if is_right:
+                if 'betas' in init_params.keys():
+                    shape = init_params["betas"].view(1, 10).detach()
+                if 'global_orient' in init_params.keys():
+                    rot = init_params["global_orient"].view(1, 3).detach()
+                    rot -= mano_layer.pose_mean[:3]
+                if 'hand_pose' in init_params.keys():
+                    pose = init_params["hand_pose"].view(1, -1).detach()
+                    pose -= mano_layer.pose_mean[3:]
+                if 'transl' in init_params.keys():
+                    trans = init_params["transl"].view(1, 3).detach()
+            else:
+                if 'betas' in init_params.keys():
+                    shape = init_params["betas"].view(1, 10).detach()
+                if 'global_orient' in init_params.keys():
+                    rot = init_params["global_orient"].view(1, 3).detach()
+                    rot[:, 1::3] *= -1
+                    rot[:, 2::3] *= -1
+                    rot -= mano_layer.pose_mean[:3]
+                if 'hand_pose' in init_params.keys():
+                    pose = init_params["hand_pose"].view(1, -1).detach()
+                    pose[:, 1::3] *= -1
+                    pose[:, 2::3] *= -1
+                    pose -= mano_layer.pose_mean[3:]
+                if 'transl' in init_params.keys():
+                    trans = init_params["transl"].view(1, 3).detach()
+                
+
+    shape.requires_grad_()
+    rot.requires_grad_()
+    pose.requires_grad_()
+    trans.requires_grad_()
+
+    start_vertices = mano_layer(
+        global_orient=rot, hand_pose=pose, betas=shape, transl=trans
+    ).vertices
+    
+    # if save_mesh:
+    #     save_trimesh(
+    #         start_vertices.detach().cpu().numpy()[0],
+    #         faces,
+    #         vis_dir + hand_type + "_hand_start.ply",
+    #     )
+
+    # Local optimization
+    rot, trans, shape, pose, hand_verts, _ = fit_mano(
+        rot,
+        trans,
+        shape,
+        pose,
+        mano_layer,
+        epoch_fine,
+        ["trans"],
+        target_vertices,
+        criterion,
+        sem_idx,
+        1e-1,
+    )
+    
+    if save_mesh:
+        save_trimesh(
+            hand_verts.detach().cpu().numpy()[0],
+            faces,
+            vis_dir + f"{iteration:04}_" + hand_type + "_coarse.ply",
+        )
+
+    rot, trans, shape, pose, hand_verts, _ = fit_mano(
+        rot,
+        trans,
+        shape,
+        pose,
+        mano_layer,
+        epoch_fine,
+        ["rot", "trans"],
+        target_vertices,
+        criterion,
+        sem_idx,
+        1e-2,
+        use_beta_loss=use_beta_loss,
+    )
+    
+    rot, trans, shape, pose, hand_verts, _ = fit_mano(
+        rot,
+        trans,
+        shape,
+        pose,
+        mano_layer,
+        epoch_fine,
+        ["pose"],
+        target_vertices,
+        criterion,
+        sem_idx,
+        1e-2,
+        use_beta_loss=use_beta_loss,
+    )
+
+    if save_mesh:
+        save_trimesh(
+            hand_verts.detach().cpu().numpy()[0],
+            faces,
+            vis_dir + f"{iteration:04}_" + hand_type + "_fine.ply",
+        )
+    
+    return {"global_orient": rot, "hand_pose": pose, "betas": shape, "transl": trans}
+
+
+
+

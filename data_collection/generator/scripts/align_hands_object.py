@@ -1,5 +1,6 @@
 import os
 
+import copy
 import torch
 import pytorch_lightning as pl
 import os.path as op
@@ -22,7 +23,7 @@ def main(args):
     device = "cuda"
     
     
-    if not args.object_mesh: # no object mesh, use object pts reconstructed from SfM
+    if args.right_object_mesh is None and args.left_object_mesh is None: # no object mesh, use object pts reconstructed from SfM
         k_path_colmap = op.join(f"{args.data_dir}/{args.seq_name}/processed/colmap/intrinsic.npy")
         ho3d_seq = args.seq_name.split("_")[1]
         k_path_ho3d = f"./assets/datasets/HO3D_v3/processed/{ho3d_seq}.pt"
@@ -34,29 +35,36 @@ def main(args):
     else:
         K = np.load(f"{args.data_dir}/{args.seq_name}/cam_K.npy") # use calibrated camere intrinsic
         K = torch.FloatTensor(K)
-        print(args.data_dir)
-        data = read_data_with_object_mesh(args.data_dir, args.seq_name, args.object_mesh, n_points=300, K=K).to(device)
+        data = read_data_with_object_mesh(args.data_dir, args.seq_name, args.right_object_mesh, args.left_object_mesh, n_points=300, K=K).to(device)
 
     out_p = op.join(f"{args.data_dir}/{args.seq_name}/processed/hold_fit.aligned.npy")
+    init_p = op.join(f"{args.data_dir}/{args.seq_name}/processed/hold_fit.before_aligned.npy")
     checkpoint_callback = ModelCheckpoint(
         dirpath=op.join(f"{args.data_dir}/{args.seq_name}/processed/mano_fit_ckpt/{args.mode}"),
         save_last=True,
     )
     os.makedirs(op.dirname(out_p), exist_ok=True)
+    os.makedirs(op.dirname(init_p), exist_ok=True)
 
     conf = load_conf(args)
     if args.is_arctic:
         from src.alignment.pl_module.arctic import ARCTICModule as PLModule
-
         print("Using ARCTIC module..")
-    elif len(data["entities"]) == 3:
-        from src.alignment.pl_module.h2o import H2OModule as PLModule
 
+    elif len(data["entities"]) == 3: # two hands, one object
+        from src.alignment.pl_module.h2o import H2OModule as PLModule
         print("Using H2O module..")
+
+    elif len(data["entities"]) == 4: # two hands, two objects
+        from src.alignment.pl_module.h2o2 import H2O2Module as PLModule
+        print("Using H2O2 module..")
+
     else:
         from src.alignment.pl_module.ho import HOModule as PLModule
 
         print("Using HO module..")
+    
+    print(data['entities'].keys())
     pl_model = PLModule(data, args, conf)
     trainer = pl.Trainer(
         logger=False,
@@ -87,12 +95,22 @@ def main(args):
         sd = torch.load(load_ckpt)["state_dict"]
         pl_model.load_state_dict(sd)
         print(f"Loaded hand model from {load_ckpt}")
+        
+    init = xdict()
+    init_pl_model = copy.deepcopy(pl_model)
+    init_pl_model.to('cpu')
+    for key in init_pl_model.models.keys():
+        init[key] = init_pl_model.models[key]()
+        print(key, init[key].keys())
+    init = init.to("cpu").to_np()
+    np.save(init_p, init)
 
     trainer.fit(pl_model, trainset)
     pl_model.to("cpu")
     out = xdict()
     for key in pl_model.models.keys():
         out[key] = pl_model.models[key]()
+        print(key, out[key].keys())
     out = out.to("cpu").to_np()
     np.save(out_p, out)
     print(f"Saved to {out_p}")
@@ -130,9 +148,18 @@ def parse_args():
     parser.add_argument("--mode", type=str, default="")
     parser.add_argument("--config", type=str, default="confs/generic.yaml")
     parser.add_argument("--is_arctic", action="store_true")
-    parser.add_argument("--object_mesh",  type=str, default=None)
+    parser.add_argument("--right_object_mesh", type=str, default=None)
+    parser.add_argument("--left_object_mesh", type=str, default=None)
     args = parser.parse_args()
     args = edict(vars(args))
+    
+    num_object_meshes = 0
+    if args.right_object_mesh:
+        num_object_meshes += 1
+    if args.left_object_mesh:
+        num_object_meshes += 1
+    args.num_object_meshes = num_object_meshes
+    
     return args
 
 

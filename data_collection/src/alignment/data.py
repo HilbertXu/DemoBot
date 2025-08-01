@@ -8,6 +8,9 @@ sys.path = [".."] + sys.path
 from common.xdict import xdict
 import trimesh
 from src.hand_pose.slerp import slerp_xyz
+import matplotlib.pyplot as plt
+import cv2
+
 
 
 def read_data(data_dir, seq_name, K):
@@ -110,19 +113,59 @@ def read_data(data_dir, seq_name, K):
     return mydata
 
 
-def read_data_with_object_mesh(data_dir, seq_name, object_mesh_f, n_points, K):
+def read_data_with_object_mesh(data_dir, seq_name, right_object_mesh_f, left_object_mesh_f=None, n_points=300, K=None):
+    def load_object_mesh(mesh_f, n_points):
+        object_name = mesh_f.split("/")[-1].split(".")[0]
+        object_pts = trimesh.load(
+            f"{mesh_f}",
+            process=False,
+        ).sample(n_points)
+        object_pts = np.asarray(object_pts)
+        
+        o2w_all = torch.FloatTensor(np.load(f"{data_dir}/{seq_name}/processed/object/{object_name}_pose_cam.npy"))
+        
+        return object_pts, o2w_all
+        
     # load data
     im_ps = sorted(glob(f"{data_dir}/{seq_name}/images/*"))
     j2d_p = f"{data_dir}/{seq_name}/processed/j2d.full.npy"
+    obj_j2d = np.load(f"{data_dir}/{seq_name}/processed/object/keypoints.npz")
     
-    object_name = object_mesh_f.split("/")[-1].split(".")[0]
-    object_pts = trimesh.load(
-        f"{object_mesh_f}",
-        process=False,
-    ).sample(n_points)
-    object_pts = np.asarray(object_pts)
-    
-    o2w_all = torch.FloatTensor(np.load(f"{data_dir}/{seq_name}/processed/object/{object_name}_pose_cam.npy"))
+    data_o = {}
+    if left_object_mesh_f is not None and right_object_mesh_f is not None:
+        left_obj_pts, left_o2w = load_object_mesh(left_object_mesh_f, n_points)
+        right_obj_pts, right_o2w = load_object_mesh(right_object_mesh_f, n_points)
+        data_o = {
+            "right_object": {
+                'j2d.gt': torch.FloatTensor(obj_j2d['right']),
+                'object_cano': torch.FloatTensor(right_obj_pts),
+                'o2w_all': right_o2w
+            },
+            "left_object": {
+                'j2d.gt': torch.FloatTensor(obj_j2d['left']),
+                'object_cano': torch.FloatTensor(left_obj_pts),
+                'o2w_all': left_o2w
+            }
+        }
+        
+    elif left_object_mesh_f is not None:
+        obj_pts, o2w = load_object_mesh(left_object_mesh_f, n_points)
+        data_o = {
+            'object': {
+                'j2d.gt': torch.FloatTensor(obj_j2d['object']),
+                'object_cano': torch.FloatTensor(obj_pts),
+                'o2w_all': o2w
+            }
+        }
+    else:
+        obj_pts, _o2w = load_object_mesh(right_object_mesh_f, n_points)
+        data_o = {
+            'object': {
+                'j2d.gt': torch.FloatTensor(obj_j2d['object']),
+                'object_cano': torch.FloatTensor(obj_pts),
+                'o2w_all': o2w
+            }
+        }
 
     if K is None:
         input_img = np.array(Image.open(im_ps[0]))
@@ -153,24 +196,12 @@ def read_data_with_object_mesh(data_dir, seq_name, object_mesh_f, n_points, K):
     meta["K"] = K
     meta["im_paths"] = im_ps
 
-    data_o = {}
-    data_o["j2d.gt"] = torch.FloatTensor(
-        np.load(f"{data_dir}/{seq_name}/processed/object/keypoints.npy")
-    )
-    data_o["object_cano"] = torch.FloatTensor(object_pts)
-    data_o["o2w_all"] = o2w_all
 
     mydata = xdict()
     entities = {}
     if "right" in data:
         data_r = read_hand_data(data["right"])
         j2d_right = j2d_data["j2d.right"]
-        j2d_right = slerp_xyz(j2d_right)
-
-        ## CVPR version:
-        # right_valid = (~np.isnan(j2d_right.reshape(-1, 21*2).mean(axis=1))).astype(np.float32) # num_frames
-        # right_valid = np.repeat(right_valid[:, np.newaxis], 21, axis=1)
-        # right_valid = np.ones_like(right_valid) ### no invalid
 
         ## New version as it is more robust
         right_valid = np.ones((j2d_right.shape[0], 21))
@@ -184,24 +215,21 @@ def read_data_with_object_mesh(data_dir, seq_name, object_mesh_f, n_points, K):
         data_l = read_hand_data(data["left"])
 
         j2d_left = j2d_data["j2d.left"]
-        j2d_left = slerp_xyz(j2d_left)
-
-        # left_valid = (~np.isnan(j2d_left.reshape(-1, 21*2).mean(axis=1))).astype(np.float32)
-        # left_valid = np.repeat(left_valid[:, np.newaxis], 21, axis=1)
-        # left_valid = np.ones_like(left_valid) ### no invalid
 
         left_valid = np.ones((j2d_left.shape[0], 21))
         j2d_left_pad = torch.FloatTensor(
             np.concatenate([j2d_left, left_valid[:, :, None]], axis=2)
         )
+        
 
         data_l["j2d.gt"] = j2d_left_pad
         entities["left"] = data_l
-
-    # mydata['object'] = data_o
-    entities["object"] = data_o
+    
+    for key, value in data_o.items():
+        entities[key] = value
     mydata["entities"] = entities
     mydata["meta"] = meta
+    
     return mydata
 
 

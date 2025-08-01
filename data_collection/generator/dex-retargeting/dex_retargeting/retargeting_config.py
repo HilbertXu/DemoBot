@@ -19,6 +19,7 @@ from dex_retargeting.yourdfpy import DUMMY_JOINT_NAMES
 class RetargetingConfig:
     type: str
     urdf_path: str
+    robot_name: str
 
     # Whether to add free joint to the root of the robot. Free joint enable the robot hand move freely in the space
     add_dummy_free_joint: bool = False

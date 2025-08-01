@@ -77,19 +77,6 @@ def validate_mask(data_dir, seq_name):
         Image.fromarray(rgb_np).save(out_p)
         
     
-    for (obj_mask_f, tgt_mask_f) in zip(object_mask_ps, target_mask_ps):
-        obj_mask = np.asarray(Image.open(obj_mask_f))
-        tgt_mask = np.asarray(Image.open(tgt_mask_f))
-        
-        obj_mask[obj_mask > 0] = 1
-        tgt_mask[tgt_mask > 0] = 1
-        
-        out_mask = np.clip((tgt_mask - obj_mask), a_max=1.0, a_min=0.0).astype(int) * 255
-        out_f = tgt_mask_f.replace("images_masks", "masks_processed")
-        Image.fromarray(out_mask).save(out_f)
-    
-    
-    
 
     # merge the three masks
     object_mask_ps = sorted(

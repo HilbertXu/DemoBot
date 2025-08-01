@@ -4,6 +4,7 @@ import os
 import sys
 
 sys.path = ["."] + sys.path
+sys.path = [".."] + sys.path
 import src.hand_pose.slerp as slerp
 
 

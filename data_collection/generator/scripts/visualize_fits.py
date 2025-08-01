@@ -22,8 +22,8 @@ def model_output_to_meshes(init_out, f3d_r):
 def main(args):
     from aitviewer.renderables.meshes import Meshes
 
-    MANO_DIR_R = "./MeshTransformer/metro/modeling/data/MANO_RIGHT.pkl"
-    MANO_DIR_L = "./MeshTransformer/metro/modeling/data/MANO_LEFT.pkl"
+    MANO_DIR_R = f"{args.assets_dir}/mano/MANO_RIGHT.pkl"
+    MANO_DIR_L = f"{args.assets_dir}/mano/MANO_LEFT.pkl"
     import smplx
 
     f3d_r = mano_layer = smplx.create(
@@ -33,19 +33,18 @@ def main(args):
         model_path=MANO_DIR_L, model_type="mano", use_pca=False, is_rhand=False
     ).faces
     sealed_vertices_sem_idx = np.load(
-        "./MeshTransformer/metro/modeling/data/sealed_vertices_sem_idx.npy", allow_pickle=True
+        f"{args.assets_dir}/mano/sealed_vertices_sem_idx.npy", allow_pickle=True
     )
     tip_sem_idx = [12, 11, 4, 5, 6]
     vidx = np.concatenate([sealed_vertices_sem_idx[sem_idx] for sem_idx in tip_sem_idx])
     meshes_all = {}
     rotation_flip = aa2rot_numpy(np.array([1, 0, 0]) * np.pi)
 
-    vis_p = f"./data/{args.seq_name}/processed/hold_fit.aligned.npy"
+    vis_p = f"{args.data_dir}/{args.seq_name}/processed/hold_fit.aligned.npy"
     data = np.load(vis_p, allow_pickle=True).item()
-
+    
     if "right" in data:
         v3d_r = data["right"]["v3d"]
-        print(v3d_r.shape)
         im_paths = data["right"]["im_paths"]
         K = data["right"]["K"]
 
@@ -56,7 +55,7 @@ def main(args):
             flat_shading=True,
             material=materials["red"],
         )
-
+        
     if "left" in data:
         v3d_l = data["left"]["v3d"]
         meshes_all["left"] = Meshes(
@@ -68,9 +67,13 @@ def main(args):
         )
 
     # PointClouds
-    pts_w = data["object"]["j3d"]
-    assert op.exists(im_paths[0])
-    meshes_all["object"] = PointClouds(pts_w, point_size=5.0, rotation=rotation_flip)
+    if 'right_object' in data.keys():
+        pts_w = data["right_object"]["j3d"]
+        meshes_all["right_object"] = PointClouds(pts_w, point_size=5.0, rotation=rotation_flip)
+    
+    if 'left_object' in data.keys():
+        pts_w = data["left_object"]["j3d"]
+        meshes_all["left_object"] = PointClouds(pts_w, point_size=5.0, rotation=rotation_flip)
 
     num_frames = len(v3d_r)
     Rt = np.eye(4)[None, :, :]
@@ -80,10 +83,9 @@ def main(args):
 
     from PIL import Image
 
-    images = [Image.open(im_p) for im_p in im_paths]
+    images = [Image.open(im_p.replace('/workspace', '/home/hilbertxu/PhD/third-year/DemoBot')) for im_p in im_paths]
 
     width, height = images[0].size
-    print(len(images))
     viewer_data = ViewerData(Rt, K, width, height, imgnames=images)
 
     viewer = HOLDViewer(size=(2000, 2000))
@@ -95,6 +97,8 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--assets_dir", type=str, default="")
+    parser.add_argument("--data_dir", type=str, default="")
     parser.add_argument("--seq_name", type=str, default="")
     args = parser.parse_args()
     args = edict(vars(args))

@@ -16,9 +16,13 @@ conda deactivate
 echo 'Setup metro env'
 conda activate metro
 bash ./install/metro.sh
-bash ./install/retargeting.sh
 conda deactivate
 
+echo 'Setup WiLoR env'
+conda activate wilor
+bash ./install/wilor.sh
+bash ./install/retargeting.sh
+conda deactivate
 
 echo 'Setup hold env'
 conda activate hold
@@ -37,16 +41,12 @@ git clone https://github.com/facebookresearch/pytorch3d.git
 cd pytorch3d
 git checkout 35badc08
 python setup.py install
-cd ..
-rm -rf pytorch3d
 
 echo 'Setup hold env :: kaolin' 
 git clone --recursive https://github.com/NVIDIAGameWorks/kaolin
 cd kaolin
 git checkout v0.10.0
 python setup.py install
-cd ..
-rm -rf kaolin
 
 echo 'Setup hold env :: smplx' 
 git clone https://github.com/zc-alexfan/smplx.git
@@ -54,16 +54,18 @@ cd smplx
 git checkout 6675c3da8
 python setup.py install
 cd ..
-rm -rf smplx
-cd ..
-rm -rf submodules
-
-
-
 pip install setuptools==59.5.0
 pip install numpy==1.23.5
 pip install scikit-image==0.18.1
 pip install 'fsspec<2023.6.0'
 conda deactivate
+
+echo 'Setup aitviewer env'
+conda activate aitviewer
+bash ./install/retargeting.sh
+conda deactivate 
+cd ..
+rm -rf submodules
+
 
 

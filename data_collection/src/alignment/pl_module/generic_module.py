@@ -21,15 +21,19 @@ class PLModule(pl.LightningModule):
         self.args = args
         self.conf = conf
         from src.alignment.params.hand import MANOParameters
-        if not args.object_mesh:
+        if args.num_object_meshes == 0:
             from src.alignment.params.object import ObjectParameters
-        else:
+        elif args.num_object_meshes == 1:
             from src.alignment.params.object_with_mesh import ObjectParameters
+        elif args.num_object_meshes == 2:
+            from src.alignment.params.bimanual_object_with_mesh import ObjectParameters
+        else:
+            raise NotImplementedError
 
         models = nn.ModuleDict()
         entities = data["entities"]
         for key in entities.keys():
-            if key == "object":
+            if "object" in key:
                 models[key] = ObjectParameters(entities[key], data["meta"])
             else:
                 models[key] = MANOParameters(
@@ -102,16 +106,21 @@ class PLModule(pl.LightningModule):
         elif self.args.mode == "o":
             if step == 0:
                 print("Object: stage 0")
-                self.models["object"].obj_transl.requires_grad = True
+                for k in self.models.keys():
+                    if 'object' in k:
+                        self.models[k].obj_transl.requires_grad = True
 
             if step == 1:
                 print("Object: stage 1")
-                self.models["object"].obj_scale[:] = self.conf.obj_scale
+                for k in self.models.keys():
+                    if 'object' in k:
+                        self.models[k].obj_scale[:] = self.conf.obj_scale
 
             if step == 2000:
                 print("Object: stage 2")
-                self.models["object"].obj_scale.requires_grad = True
-
+                for k in self.models.keys():
+                    if 'object' in k:
+                        self.models[k].obj_scale.requires_grad = True
             if step % self.conf.decay_every == 0:
                 torch_utils.decay_lr(self.optimizer, self.conf.decay_factor)
 

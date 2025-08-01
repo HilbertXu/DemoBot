@@ -37,18 +37,22 @@ RUN cd / && wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-L
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc &&\
     /bin/bash -c "source ~/.bashrc" &&\
     rm /miniconda.sh
+
+RUN /opt/conda/bin/conda tos accept
    
 RUN /opt/conda/bin/conda create --name 100doh python=3.8 &&\
     /opt/conda/bin/conda create --name metro python=3.8 &&\
     /opt/conda/bin/conda create --name sam-track python=3.8 &&\
     /opt/conda/bin/conda create --name hold python=3.8 &&\
     /opt/conda/bin/conda create --name aitviewer python=3.8 &&\
+    /opt/conda/bin/conda create --name wilor python=3.10 &&\
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc &&\
     echo "alias pyhold=/opt/conda/envs/hold/bin/python" >> ~/.bashrc &&\
     echo "alias pymetro=/opt/conda/envs/metro/bin/python" >> ~/.bashrc &&\
     echo "alias pysam=/opt/conda/envs/sam-track/bin/python" >> ~/.bashrc &&\
     echo "alias pydoh=/opt/conda/envs/100doh/bin/python" >> ~/.bashrc &&\
     echo "alias pyait=/opt/conda/envs/aitviewer/bin/python" >> ~/.bashrc &&\
+    echo "alias pywilor=/opt/conda/envs/wilor/bin/python" >> ~/.bashrc &&\
     echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc
 
 

@@ -14,6 +14,7 @@ import time
 import os
 import argparse
 import shutil
+import zipfile
 
 def parse_args():
     """ Parses command-line arguments """
@@ -24,8 +25,20 @@ def parse_args():
     parser.add_argument("--calibrate_camera", action='store_true', help="whether to calibrate camera extrinsic")
     parser.add_argument("--calibrate_camera_vis", action='store_true', help="whether to visualize the marker")
     parser.add_argument("--fps", type=float,  default=30)
+    parser.add_argument("--select_keyframe", action='store_true', default=False)
     
     return parser.parse_args()
+
+
+
+def zip_folder(folder_path, zip_path):
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                # Write relative path to keep folder structure inside zip
+                arcname = os.path.relpath(file_path, start=folder_path)
+                zipf.write(file_path, arcname)
 
 args = parse_args()
 
@@ -91,6 +104,8 @@ args.output_dir = f"{args.output_dir}_fps{int(args.fps)}"
 # Get the absolute path to the subfolder
 subfolder_depth = f"{args.output_dir}/depth"
 subfolder_rgb = f"{args.output_dir}/rgb"
+subfolder_keyframes_depth =  f"{args.output_dir}/kf_depth"
+subfolder_keyframes_rgb =  f"{args.output_dir}/kf_rgb"
 # setting up output folder
 if os.path.exists(args.output_dir):
     shutil.rmtree(args.output_dir)
@@ -101,6 +116,8 @@ os.makedirs(f'{args.output_dir}/processed/sam/right/images_masks', exist_ok=True
 os.makedirs(f'{args.output_dir}/processed/sam/left/images_masks', exist_ok=True)
 os.makedirs(subfolder_depth, exist_ok=True)
 os.makedirs(subfolder_rgb, exist_ok=True)
+os.makedirs(subfolder_keyframes_depth, exist_ok=True)
+os.makedirs(subfolder_keyframes_rgb, exist_ok=True)
 os.symlink(f'./rgb', f'{args.output_dir}/images')
 # 
 
@@ -120,8 +137,9 @@ obj_points = np.array([
 dist_coeffs = np.zeros((4, 1))  # Assuming no lens distortion
 
 # Streaming loop
-print("Camera on, press 'e' to calibrate camera, press 'space' to start recording")
+print("Camera on, press 'e' to calibrate camera, press 'k' for selecting keyframe, press 'space' to start recording")
 try:
+    keyframe_list = []
     while True:
         # Get frameset of color and depth
         frames = pipeline.wait_for_frames()
@@ -199,6 +217,18 @@ try:
                     cv2.aruco.drawAxis(image, intrinsics_matrix, dist_coeffs, rvecs[i], tvecs[i], marker_size)
 
                 cv2.imwrite(f'{args.output_dir}/calibrate.png', image)
+        
+        elif key & 0xFF == ord("k") and args.select_keyframe:
+            if RecordStream:
+                framename = int(round(time.time() * 1000))
+                print(f"Select {len(keyframe_list)+1} keyframe: {framename}")
+                
+                image_path_depth = os.path.join(subfolder_keyframes_depth, f"{framename}.png")
+                image_path_rgb = os.path.join(subfolder_keyframes_rgb, f"{framename}.png")
+                
+                cv2.imwrite(image_path_depth, depth_image)
+                cv2.imwrite(image_path_rgb, color_image)
+                
                 
         # Start saving the frames if space is pressed once until it is pressed again
         elif key & 0xFF == ord(" "):
@@ -224,9 +254,26 @@ try:
                 RecordStream = False
                 # os.system(f'zip -r {args.output_dir}/rgb.zip  {args.output_dir}/rgb')
                 print("Recording stopped")
-        
-        
+                cv2.destroyAllWindows()
+                # merge keyframe with other frames
+                for filename in os.listdir(subfolder_keyframes_rgb):
+                    print(f"merging keyframe: {filename}")
+                    src_path = os.path.join(subfolder_keyframes_rgb, filename)
+                    dst_path = os.path.join(subfolder_rgb, filename)
 
+                    if os.path.isfile(src_path):
+                        shutil.copy2(src_path, dst_path)  # copy2 preserves metadata
+                    
+                    src_path = os.path.join(subfolder_keyframes_depth, filename)
+                    dst_path = os.path.join(subfolder_depth, filename)
+
+                    if os.path.isfile(src_path):
+                        shutil.copy2(src_path, dst_path)  # copy2 preserves metadata
+
+                zip_folder(subfolder_rgb, f"{subfolder_rgb}.zip")
+                
+                break
+        
         if RecordStream:
             now = time.time()
             if now - last_record_time > record_interval:
@@ -249,7 +296,12 @@ try:
 
             break
 finally:
-    
-    
-
     pipeline.stop()
+
+
+
+
+# @TODO
+# 1. update downsample function to force include keyframes
+# 2. update replay function to use selected keyframes
+# 3. update env

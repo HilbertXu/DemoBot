@@ -140,7 +140,7 @@ def main():
     data = np.load(f"{args.data_dir}/{seq_name}/processed/v3d.npy", allow_pickle=True).item()
     data = xdict(data).search("v3d.")
 
-    if args.hand_type is not None:
+    if args.hand_type in ['right', 'left']:
         data = data.search(args.hand_type)
 
     out_dict = {}
